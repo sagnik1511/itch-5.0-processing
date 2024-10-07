@@ -36,4 +36,3 @@ std::string readStock(std::ifstream &file){
     std::string stockName = readString(file, 8);
     return rstrip(stockName);
 }
-

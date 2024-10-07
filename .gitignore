@@ -38,4 +38,8 @@
 dump
 
 # Executables
-bin/parser
+bin/*
+!bin/.gitkeep
+
+# Data Files
+raw/

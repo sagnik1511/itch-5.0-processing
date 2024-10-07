@@ -470,6 +470,7 @@ struct AddOrderNoMPID : public baseMessage {
 
 // This message will be generated for attributed orders and quotations accepted by the Nasdaq system.
 struct AddOrderWithMPID : public AddOrderNoMPID {
+    public:
     std::string attribution;
     void load(std::ifstream &file){
         AddOrderNoMPID::load(file);
