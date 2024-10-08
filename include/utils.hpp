@@ -36,3 +36,10 @@ std::string readStock(std::ifstream &file){
     std::string stockName = readString(file, 8);
     return rstrip(stockName);
 }
+
+uint16_t ceilDiv(uint64_t x, uint64_t y){
+    if(x%y){
+        return uint16_t(x/y +1);
+    }
+    return uint16_t(x/y);
+}
