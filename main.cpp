@@ -5,6 +5,7 @@ int main(){
     Parser parser = Parser(binary_file);
 
     parser.parse();
+    parser.processRunningVWAP();
 
     return 0;
 

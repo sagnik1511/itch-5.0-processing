@@ -12,18 +12,36 @@
 #include <map>
 #include <variant>
 #include "message.hpp"
-#define NANOSECONDS_PER_HOUR 3600 * 1e9
 
 
 using Data = std::variant<char, uint16_t, uint32_t, uint64_t, double>;
 
 
 class Parser{
+    uint64_t nanosecondsPerHour = 3600 * 1e9;
     std::string fp;
     std::string rawTradesFilePath = "/workspaces/itch-5.0-processing/raw/raw_trades.csv";
     std::string openOrdersFilePath = "/workspaces/itch-5.0-processing/raw/open_orders.csv";
-    std::map<uint16_t, std::string>stock_map;
+    std::string finalVWAPFilePath = "/workspaces/itch-5.0-processing/itch_vwap.csv";
+    std::map<uint16_t, std::string>stockMap;
     std::map<uint16_t, std::map<uint64_t, std::vector<Data>>> orders, trades;
+    // std::map<uint16_t, std::map<uint8_t, std::vector<std::vector<Data>>>> processedTrades;
+    std::map<uint16_t, std::map<uint16_t, std::vector<std::pair<double, uint64_t>>>>pv;
+    std::map<uint16_t, std::map<uint16_t, double>>vwapMap;
+
+    std::pair<double, uint64_t> fetchPV(std::vector<Data>& execTrade){
+            double* price = std::get_if<double>(&execTrade[2]);
+            if(uint64_t* vol = std::get_if<uint64_t>(&execTrade[1])){
+                return {(*vol) * (*price), (*vol)};
+            }
+            else if(uint32_t* vol = std::get_if<uint32_t>(&execTrade[1])){
+                return {(*vol) * (*price), (*vol)};
+            }
+            else{
+                std::cerr << "Unknown datatype for volume" << std::endl;
+                return {0.0, 0};
+            }
+        }
 
     void writeRawInfo(){
 
@@ -38,7 +56,7 @@ class Parser{
         openOrders << "name,ts,vol,price,\n";
 
         for(auto& [stockLocate, stockTrades] : trades){
-            name = stock_map[stockLocate];
+            name = stockMap[stockLocate];
             for(auto& [matchNumber, trade] : stockTrades){
                 rawTrades << name << ",";
                 for(auto& tradeEl : trade){
@@ -53,7 +71,7 @@ class Parser{
         }
 
         for(auto& [stockLocate, stockOrders] : orders){
-            name = stock_map[stockLocate];
+            name = stockMap[stockLocate];
             for(auto& [orderRefNumber, order] : stockOrders){
                 openOrders << name << ",";
                 for(auto& orderEl : order){
@@ -66,11 +84,25 @@ class Parser{
                 //rawTrades << name << "," << (trade)[0] << "," << (trade)[1] << "," << (trade)[3] << ",\n";
             }
         }
+        orders.clear();
+    }
+
+    void writeVWAP(){
+        std::ofstream finVWAP;
+        std::string name;
+        finVWAP.open(finalVWAPFilePath);
+        finVWAP << "name,hour,vwap,\n";
+        for(auto& [stockLocate, hourlyVWAP]: vwapMap){
+            name = stockMap[stockLocate];
+            for(auto& [hour, vwap]: hourlyVWAP){
+                finVWAP << name << "," << hour << "," << vwap << ",\n";
+            }
+        }
     }
 
     public:
     Parser(std::string fp) : fp(fp) {
-        stock_map.clear();
+        stockMap.clear();
         orders.clear();
         trades.clear();
     };
@@ -94,7 +126,7 @@ class Parser{
                 if (messageType == 'R') {
                     StockDirectory msg;
                     msg.load(binFile);
-                    stock_map[msg.stockLocate] = msg.stock;
+                    stockMap[msg.stockLocate] = msg.stock;
                 }
                 // else if (messageType == 'H') {
                 //     StockTradingAction msg;
@@ -293,8 +325,41 @@ class Parser{
         binFile.close();
 
         // Write Raw Data
-        writeRawInfo();
+        // writeRawInfo();
 
+    }
+
+    void processRunningVWAP(){
+        for(auto& [stockLocate, execTrades] : trades){
+            for(auto& [matchNumber, trade] : execTrades){
+                uint64_t ts = std::get<uint64_t>(trade[0]);
+                uint16_t hour = ceilDiv(ts, nanosecondsPerHour);
+                pv[stockLocate][hour].push_back(fetchPV(trade));
+                
+            }
+        }
+        
+        for(auto& [stockLocate, hourlyPVInfo]: pv){
+            double currPV = 0.0;
+            double hourlyVWAP;
+            uint64_t totalTradedQuantity = 0;
+            for(auto& [hour, pvInfoList] : hourlyPVInfo){
+                for(auto& pvInfo : pvInfoList){
+                    currPV += pvInfo.first;
+                    totalTradedQuantity += pvInfo.second;
+                }
+                if(totalTradedQuantity == 0.0){
+                    hourlyVWAP = 0.0;
+                }
+                else{
+                    hourlyVWAP = currPV / double(totalTradedQuantity);
+                }
+                //std::cout << "|StockLocator=" << stockLocate << "|hour=" << hour << "|VWAP=" << hourlyVWAP << "|\n";
+                vwapMap[stockLocate][hour] = hourlyVWAP;
+            } 
+        }
+
+        writeVWAP();
     }
 
 };

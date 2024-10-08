@@ -449,7 +449,7 @@ struct AddOrderNoMPID : public baseMessage {
         timestamp = readBigEndianInteger(file, 6);
         orderRefNumber = readBigEndianInteger(file, 8);
         file.read(&buySellIndicator, sizeof(buySellIndicator));
-        file.read(reinterpret_cast<char*>(&shares), sizeof(shares));
+        shares = readBigEndianInteger(file, 4);
         stock = readStock(file);
         priceRaw = static_cast<uint32_t>(readBigEndianInteger(file, 4));
         price = priceRaw / 10000.0;
@@ -501,7 +501,7 @@ struct OrderExecuted : public baseMessage {
         trackingNumber = readBigEndianInteger(file, 2);
         timestamp = readBigEndianInteger(file, 6);
         orderRefNumber = readBigEndianInteger(file, 8);
-        file.read(reinterpret_cast<char*>(&executedShares), sizeof(executedShares));
+        executedShares = readBigEndianInteger(file, 4);
         matchNumber = readBigEndianInteger(file, 8);
     }
 
@@ -660,7 +660,7 @@ struct NonCrossTrade : public baseMessage{
     uint32_t shares;
     std::string stock;
     uint32_t priceRaw;
-    uint32_t price;
+    double price;
     uint64_t matchNumber;
 
     void load(std::ifstream &file){
@@ -709,7 +709,7 @@ struct CrossTrade : public baseMessage {
     uint64_t shares;
     std::string stock;
     uint32_t crossPriceRaw;
-    float crossPrice;
+    double crossPrice;
     uint64_t matchNumber;
     char crossType;
 
@@ -717,7 +717,7 @@ struct CrossTrade : public baseMessage {
         stockLocate = readBigEndianInteger(file, 2);
         trackingNumber = readBigEndianInteger(file, 2);
         timestamp = readBigEndianInteger(file, 6);
-        file.read(reinterpret_cast<char*>(&shares), sizeof(shares));
+        shares = readBigEndianInteger(file, 8);
         stock = readStock(file);
         crossPriceRaw = static_cast<uint32_t>(readBigEndianInteger(file, 4));
         crossPrice = crossPriceRaw / 10000.0;
@@ -778,9 +778,9 @@ struct NetOrderImbalance : public baseMessage {
     uint64_t imbalanceShares;
     char imbalanceDirection;
     std::string stock;
-    float farPrice;
-    float nearPrice;
-    float currRefPrice;
+    double farPrice;
+    double nearPrice;
+    double currRefPrice;
     char crossType;
     char priceVariationIndicator;
 
